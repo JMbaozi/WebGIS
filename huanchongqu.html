@@ -1,0 +1,181 @@
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>ArcGIS JavaScript Tutorials: Buffer and intersect geometry</title>
+  <style>
+    html, body, #viewDiv {
+      padding: 0;
+      margin: 0;
+      height: 100%;
+      width: 100%;
+    }
+    #tuli{
+      position: absolute; 
+      left: 1700px;
+      top: 600px;
+    }
+  </style>
+  
+  <link rel="stylesheet" href="https://js.arcgis.com/4.15/esri/themes/light/main.css">
+  <script src="https://js.arcgis.com/4.15"></script>
+  
+  <script>  
+    require([
+      "esri/Map",
+      "esri/views/MapView",
+      "esri/layers/FeatureLayer",
+      "esri/Graphic",
+      "esri/geometry/geometryEngine",
+      "esri/layers/MapImageLayer"
+    ], function(Map, MapView, FeatureLayer, Graphic, geometryEngine,MapImageLayer) {
+
+      var map = new Map({
+        basemap: "topo-vector"
+      });
+      
+      var view = new MapView({
+        container: "viewDiv",
+        map: map,
+        center: [120.880, 36.43],
+        zoom: 10
+      });
+
+      var layer = new MapImageLayer({
+        url: "http://localhost:6080/arcgis/rest/services/热力图/图标图/MapServer"
+      });
+      map.add(layer);  // adds the layer to the map
+
+      // Trails (lines)
+      var featureLayer = new FeatureLayer({
+        url: "http://localhost:6080/arcgis/rest/services/热力图/房价分布线/MapServer"
+      });
+
+      map.add(featureLayer);
+
+      var activeGraphic;
+      var bufferGraphic;
+      var textGraphic;
+      var lineGraphic;
+      
+      function findNearestGraphic(event) {
+        return view.hitTest(event).then(function (response) {
+          var graphic, filteredResult;
+          // Get the featureLayer graphic
+          if (response.results.length) {
+            filteredResult = response.results.filter(function (result) {
+              return (result.graphic.layer === featureLayer);
+            })[0]; 
+          }
+          // Only return new graphics found
+          if (filteredResult) {
+            graphic = filteredResult.graphic;
+            if (!activeGraphic ||  (activeGraphic.attributes.OBJECTID !== graphic.attributes.OBJECTID)) {
+              return graphic;
+            } else {
+              return null;
+            } 
+          } else {
+            return null;
+          }
+        });
+      }
+      
+      function drawBuffer(bufferGeometry) {
+        view.graphics.remove(bufferGraphic);
+        bufferGraphic = new Graphic({
+          geometry: bufferGeometry,
+          symbol: {
+            type: "simple-fill",
+            color: "rgba(0,0,0,.15)",
+            outline: {
+              color: "rgba(0,0,0,.5)",
+              width: 1
+            }
+          }
+        });
+        view.graphics.add(bufferGraphic);
+      }
+      
+      function drawLine(point, point2) {
+        view.graphics.remove(lineGraphic);
+        lineGraphic = new Graphic({
+          geometry: {
+            type: "polyline",
+            paths: [
+              [point.longitude, point.latitude],
+              [point2.longitude, point2.latitude]
+            ]
+          },
+          symbol: {
+            type: "simple-line",
+            color: "#333",
+            width: 1
+          }
+        });
+        view.graphics.add(lineGraphic);
+      }
+      
+      function drawText(point, distance) {
+        view.graphics.remove(textGraphic);
+        textGraphic = new Graphic({
+          geometry: point,
+          symbol: {
+            type: "text",
+            text: distance.toFixed(2) + " miles",
+            color: "black",
+            font: {
+              size: 12
+            },
+            haloColor: "white",
+            haloSize: 1
+          }
+        })
+        view.graphics.add(textGraphic)
+      }
+      
+      // Mouse events
+      
+      view.on("pointer-move", function(event){
+        // Get the graphic closest to the mouse pointer and buffer it     
+        findNearestGraphic(event).then(function(graphic){
+          if (graphic) {
+            activeGraphic = graphic;
+            // Buffer geometry and draw polygon
+            var buffer = geometryEngine.geodesicBuffer(activeGraphic.geometry, .25, "miles");
+            drawBuffer(buffer);
+          }
+        });
+        // Perform intersect and distance calculations
+        if (bufferGraphic) {
+          // Change the color if the pointer intersects the buffer
+          var cursorPoint = view.toMap(event);
+          var intersects = geometryEngine.intersects(bufferGraphic.geometry, cursorPoint);
+          var symbol = bufferGraphic.symbol.clone();
+          if (intersects) {
+            symbol.color = "rgba(0,0,0,.15)";
+          } else {
+            symbol.color = "rgba(0,0,0,0)";
+          }
+          bufferGraphic.symbol = symbol;
+          // Get the closest vertex (point) in the buffer to the mouse location and draw a line
+          var vertexResult = geometryEngine.nearestVertex(bufferGraphic.geometry, cursorPoint);
+          var closestPoint = vertexResult.coordinate;
+          drawLine(cursorPoint, closestPoint)
+          // Get the distance and draw a text label
+          var distance = geometryEngine.geodesicLength(lineGraphic.geometry, "miles");
+          drawText(cursorPoint, distance);            
+        }      
+      });
+            
+            
+    });
+  </script>
+</head>
+<body>
+<div id="viewDiv"></div>
+<div id="tuli">
+  <img src="/tuli.png" width="200" height="300">
+</div>
+</body>
+</html>

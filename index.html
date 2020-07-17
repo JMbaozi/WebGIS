@@ -1,0 +1,722 @@
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>青岛市房价展示</title>
+  <style>
+    html, body, #viewDiv {
+      padding: 0;
+      margin: 0;
+      height: 100%;
+      width: 100%;
+    }
+    .esri-view .esri-directions {
+    	position: fixed;
+    	right: 15px;
+      max-height: calc(100% - 45px) !important;
+    }
+    .esri-view .esri-component.esri -attribution {
+    	position: fixed;
+    }
+    #maplist{
+      position: absolute; 
+      left: 1500px;
+      top: 15px;
+    }
+    #maplist a{
+      display: block; /* 把链接显示为块元素可使整个链接区域可点击 */
+      color: yellowgreen;
+      text-align: center;
+      padding: 10px;
+      overflow: hidden;
+      background-color: wheat;
+      text-decoration: none; /* 去除下划线 */
+    }
+    #maplist a:hover{
+      background-color: lightblue;
+    }
+    #showlist{
+      position: absolute; 
+      left: 1500px;
+      top: 215px;
+    }
+    #showlist a{
+      border: 0;
+      outline: none;
+      display: block; /* 把链接显示为块元素可使整个链接区域可点击 */
+      color: yellowgreen;
+      text-align: center;
+      padding: 10px;
+      overflow: hidden;
+      background-color: wheat;
+      text-decoration: none; /* 去除下划线 */
+    }
+    #showlist input{
+      border: 0;
+      outline: none;
+      display: block; /* 把链接显示为块元素可使整个链接区域可点击 */
+      color: yellowgreen;
+      text-align: center;
+      padding: 10px;
+      overflow: hidden;
+      background-color: wheat;
+    }
+    #showlist input:hover{
+      background-color: lightblue;
+    }
+    #showlist a:hover{
+      background-color: lightblue;
+    }
+  </style>
+
+  <link rel="stylesheet" href="https://js.arcgis.com/4.15/esri/css/main.css">
+  <script src="https://js.arcgis.com/4.15/"></script>
+</head>
+<body>
+  <div id="viewDiv"></div>
+  <div id="maplist">
+    <a href="/message.html" target="_blank">留言板</a>
+    <a href="/tubiao.html" target="_blank">房价图标图</a>
+    <a href="/pingjun.html" target="_blank">平均房价图</a>
+    <a href="/relitu.html" target="_blank">房价热力图</a>
+    <a href="/huanchongqu.html" target="_blank">缓冲区图</a>
+  </div>
+  <div id="showlist">
+    <input type="button" onclick="tubiao()" value="房价图标展示">
+    <input type="button" onclick="pingjun()" value="平均房价展示">
+    <input type="button" onclick="reli()" value="  热力图展示  ">
+    <input type="button" onclick="yinghuo()" value="  萤火图展示  ">
+  </div>
+</body>
+
+<!-- 首页 -->
+<script>
+  require([
+    "esri/Map",
+    "esri/views/MapView",
+    "esri/widgets/BasemapToggle",
+    "esri/widgets/BasemapGallery",
+    "esri/layers/TileLayer",
+    "esri/widgets/Locate",
+    "esri/widgets/Track",
+    "esri/Graphic",
+    "esri/widgets/Search",
+    "esri/widgets/Directions",
+    "esri/layers/FeatureLayer",
+    "esri/layers/KMLLayer",
+    "esri/layers/MapImageLayer"
+  ], function(Map, MapView, BasemapToggle, BasemapGallery,TileLaye, Locate, Track, Graphic, Search, Directions, FeatureLayer,KMLLayer,MapImageLayer){
+      
+      var map = new Map({
+          basemap: "streets-vector",
+      });
+
+    var view = new MapView({
+      container: "viewDiv",
+      map: map,
+      center: [120.880, 36.43],
+      zoom:8,
+      padding: {
+        right: 320
+      }
+    });
+      var layer = new MapImageLayer({
+        url: "http://localhost:6080/arcgis/rest/services/热力图/房价分布/MapServer"
+      });
+      map.add(layer);  // adds the layer to the map
+
+      //*** Add div element to show coordates ***//
+      var coordsWidget = document.createElement("div");
+      coordsWidget.id = "coordsWidget";
+      coordsWidget.className = "esri-widget esri-component";
+      coordsWidget.style.padding = "7px 15px 5px";
+      view.ui.add(coordsWidget, "bottom-right");
+
+      //*** Update lat, lon, zoom and scale ***//
+      function showCoordinates(pt) {
+          var coords = "纬度/经度 " + pt.latitude.toFixed(3) + " " + pt.longitude.toFixed(3) + 
+              " | 比例尺 1:" + Math.round(view.scale * 1) / 1 +
+              " | 缩放等级 " + view.zoom;
+          coordsWidget.innerHTML = coords;
+      }
+      
+      //*** Add event and show center coordinates after the view is finished moving e.g. zoom, pan ***//
+      view.watch(["stationary"], function() {
+          showCoordinates(view.center);
+      });
+
+      //*** Add event to show mouse coordinates on click and move ***//
+      view.on(["pointer-down","pointer-move"], function(evt) {
+          showCoordinates(view.toMap({ x: evt.x, y: evt.y }));
+      });
+
+      //当前定位  
+      var track = new Track({
+        view: view,
+        graphic: new Graphic({
+          symbol: {
+            type: "simple-marker",
+            size: "12px",
+            color: "green",
+            outline: {
+              color: "#efefef",
+              width: "1.5px"
+            }
+          }
+        }),
+        useHeadingEnabled: false
+      });
+      view.ui.add(track, "top-left");
+
+      // Add Search widget
+      var search = new Search({
+          view: view
+      });
+      view.ui.add(search, "bottom-left"); // Add to the map
+              
+      // Find address
+      
+      view.on("click", function(evt){
+          search.clear(); 
+          view.popup.clear();
+          if (search.activeSource) {
+          var geocoder = search.activeSource.locator; // World geocode service
+          var params = {
+              location: evt.mapPoint 
+          };
+          geocoder.locationToAddress(params)
+              .then(function(response) { // Show the address found
+              var address = response.address;
+              showPopup(address, evt.mapPoint);
+              }, function(err) { // Show no address found
+              showPopup("No address found.", evt.mapPoint);
+              });
+          }
+      });
+      
+      function showPopup(address, pt) {
+          view.popup.open({
+          title:  + Math.round(pt.longitude * 100000)/100000 + ", " + Math.round(pt.latitude * 100000)/100000,
+          content: address,
+          location: pt
+          });
+      }
+            
+    // To allow access to the route service and prevent the user from signing in, do the Challenge step in the lab to set up a service proxy
+    
+    var directions = new Directions({
+      view: view
+    });
+    
+   view.ui.add(directions, "top-right");
+          
+    
+  });
+</script>
+
+<!-- 萤火图 -->
+<script>
+  function yinghuo(){
+  require([
+    "esri/Map",
+    "esri/views/MapView",
+    "esri/widgets/BasemapToggle",
+    "esri/widgets/BasemapGallery",
+    "esri/layers/TileLayer",
+    "esri/widgets/Locate",
+    "esri/widgets/Track",
+    "esri/Graphic",
+    "esri/widgets/Search",
+    "esri/widgets/Directions",
+    "esri/layers/FeatureLayer",
+    "esri/layers/KMLLayer",
+    "esri/layers/MapImageLayer",
+    "esri/geometry/geometryEngine"
+  ], function(Map, MapView, BasemapToggle, BasemapGallery,TileLaye, Locate, Track, Graphic, Search, Directions, FeatureLayer,KMLLayer,MapImageLayer,geometryEngine){
+      
+      var map = new Map({
+          basemap: "streets-night-vector",
+      });
+
+    var view = new MapView({
+      container: "viewDiv",
+      map: map,
+      center: [120.880, 36.43],
+      zoom:8,
+      padding: {
+        right: 320
+      }
+    });
+
+      var layer = new MapImageLayer({
+        url: "http://localhost:6080/arcgis/rest/services/热力图/萤火图/MapServer"
+      });
+      map.add(layer);  // adds the layer to the map
+
+      //*** Add div element to show coordates ***//
+      var coordsWidget = document.createElement("div");
+      coordsWidget.id = "coordsWidget";
+      coordsWidget.className = "esri-widget esri-component";
+      coordsWidget.style.padding = "7px 15px 5px";
+      view.ui.add(coordsWidget, "bottom-right");
+
+      //*** Update lat, lon, zoom and scale ***//
+      function showCoordinates(pt) {
+          var coords = "纬度/经度 " + pt.latitude.toFixed(3) + " " + pt.longitude.toFixed(3) + 
+              " | 比例尺 1:" + Math.round(view.scale * 1) / 1 +
+              " | 缩放等级 " + view.zoom;
+          coordsWidget.innerHTML = coords;
+      }
+      
+      //*** Add event and show center coordinates after the view is finished moving e.g. zoom, pan ***//
+      view.watch(["stationary"], function() {
+          showCoordinates(view.center);
+      });
+
+      //*** Add event to show mouse coordinates on click and move ***//
+      view.on(["pointer-down","pointer-move"], function(evt) {
+          showCoordinates(view.toMap({ x: evt.x, y: evt.y }));
+      });
+
+      //当前定位  
+      var track = new Track({
+        view: view,
+        graphic: new Graphic({
+          symbol: {
+            type: "simple-marker",
+            size: "12px",
+            color: "green",
+            outline: {
+              color: "#efefef",
+              width: "1.5px"
+            }
+          }
+        }),
+        useHeadingEnabled: false
+      });
+      view.ui.add(track, "top-left");
+
+      // Add Search widget
+      var search = new Search({
+          view: view
+      });
+      view.ui.add(search, "bottom-left"); // Add to the map
+              
+      // Find address
+      
+      view.on("click", function(evt){
+          search.clear(); 
+          view.popup.clear();
+          if (search.activeSource) {
+          var geocoder = search.activeSource.locator; // World geocode service
+          var params = {
+              location: evt.mapPoint 
+          };
+          geocoder.locationToAddress(params)
+              .then(function(response) { // Show the address found
+              var address = response.address;
+              showPopup(address, evt.mapPoint);
+              }, function(err) { // Show no address found
+              showPopup("No address found.", evt.mapPoint);
+              });
+          }
+      });
+      
+      function showPopup(address, pt) {
+          view.popup.open({
+          title:  + Math.round(pt.longitude * 100000)/100000 + ", " + Math.round(pt.latitude * 100000)/100000,
+          content: address,
+          location: pt
+          });
+      }
+            
+    // To allow access to the route service and prevent the user from signing in, do the Challenge step in the lab to set up a service proxy
+    
+    var directions = new Directions({
+      view: view
+    });
+    
+   view.ui.add(directions, "top-right");
+    
+  });
+}
+</script>
+
+<!-- 图标图 -->
+<script>
+  function tubiao(){
+  require([
+    "esri/Map",
+    "esri/views/MapView",
+    "esri/widgets/BasemapToggle",
+    "esri/widgets/BasemapGallery",
+    "esri/layers/TileLayer",
+    "esri/widgets/Locate",
+    "esri/widgets/Track",
+    "esri/Graphic",
+    "esri/widgets/Search",
+    "esri/widgets/Directions",
+    "esri/layers/FeatureLayer",
+    "esri/layers/KMLLayer",
+    "esri/layers/MapImageLayer"
+  ], function(Map, MapView, BasemapToggle, BasemapGallery,TileLaye, Locate, Track, Graphic, Search, Directions, FeatureLayer,KMLLayer,MapImageLayer){
+      
+      var map = new Map({
+          basemap: "streets-vector",
+      });
+
+    var view = new MapView({
+      container: "viewDiv",
+      map: map,
+      center: [120.880, 36.43],
+      zoom:8,
+      padding: {
+        right: 320
+      }
+    });
+      var layer = new MapImageLayer({
+        url: "http://localhost:6080/arcgis/rest/services/热力图/图标图/MapServer"
+      });
+      map.add(layer);  // adds the layer to the map
+
+      //*** Add div element to show coordates ***//
+      var coordsWidget = document.createElement("div");
+      coordsWidget.id = "coordsWidget";
+      coordsWidget.className = "esri-widget esri-component";
+      coordsWidget.style.padding = "7px 15px 5px";
+      view.ui.add(coordsWidget, "bottom-right");
+
+      //*** Update lat, lon, zoom and scale ***//
+      function showCoordinates(pt) {
+          var coords = "纬度/经度 " + pt.latitude.toFixed(3) + " " + pt.longitude.toFixed(3) + 
+              " | 比例尺 1:" + Math.round(view.scale * 1) / 1 +
+              " | 缩放等级 " + view.zoom;
+          coordsWidget.innerHTML = coords;
+      }
+      
+      //*** Add event and show center coordinates after the view is finished moving e.g. zoom, pan ***//
+      view.watch(["stationary"], function() {
+          showCoordinates(view.center);
+      });
+
+      //*** Add event to show mouse coordinates on click and move ***//
+      view.on(["pointer-down","pointer-move"], function(evt) {
+          showCoordinates(view.toMap({ x: evt.x, y: evt.y }));
+      });
+
+      //当前定位  
+      var track = new Track({
+        view: view,
+        graphic: new Graphic({
+          symbol: {
+            type: "simple-marker",
+            size: "12px",
+            color: "green",
+            outline: {
+              color: "#efefef",
+              width: "1.5px"
+            }
+          }
+        }),
+        useHeadingEnabled: false
+      });
+      view.ui.add(track, "top-left");
+
+      // Add Search widget
+      var search = new Search({
+          view: view
+      });
+      view.ui.add(search, "bottom-left"); // Add to the map
+              
+      // Find address
+      
+      view.on("click", function(evt){
+          search.clear(); 
+          view.popup.clear();
+          if (search.activeSource) {
+          var geocoder = search.activeSource.locator; // World geocode service
+          var params = {
+              location: evt.mapPoint 
+          };
+          geocoder.locationToAddress(params)
+              .then(function(response) { // Show the address found
+              var address = response.address;
+              showPopup(address, evt.mapPoint);
+              }, function(err) { // Show no address found
+              showPopup("No address found.", evt.mapPoint);
+              });
+          }
+      });
+      
+      function showPopup(address, pt) {
+          view.popup.open({
+          title:  + Math.round(pt.longitude * 100000)/100000 + ", " + Math.round(pt.latitude * 100000)/100000,
+          content: address,
+          location: pt
+          });
+      }
+            
+    // To allow access to the route service and prevent the user from signing in, do the Challenge step in the lab to set up a service proxy
+    
+    var directions = new Directions({
+      view: view
+    });
+    
+   view.ui.add(directions, "top-right");
+    
+  });
+}
+</script>
+
+<!-- 平均房价图 -->
+<script>
+  function pingjun(){
+  require([
+    "esri/Map",
+    "esri/views/MapView",
+    "esri/widgets/BasemapToggle",
+    "esri/widgets/BasemapGallery",
+    "esri/layers/TileLayer",
+    "esri/widgets/Locate",
+    "esri/widgets/Track",
+    "esri/Graphic",
+    "esri/widgets/Search",
+    "esri/widgets/Directions",
+    "esri/layers/FeatureLayer",
+    "esri/layers/KMLLayer",
+    "esri/layers/MapImageLayer"
+  ], function(Map, MapView, BasemapToggle, BasemapGallery,TileLaye, Locate, Track, Graphic, Search, Directions, FeatureLayer,KMLLayer,MapImageLayer){
+      
+      var map = new Map({
+          basemap: "streets-vector",
+      });
+
+    var view = new MapView({
+      container: "viewDiv",
+      map: map,
+      center: [120.880, 36.43],
+      zoom:8,
+      padding: {
+        right: 320
+      }
+    });
+      var layer = new MapImageLayer({
+        url: "http://localhost:6080/arcgis/rest/services/热力图/青岛市平均房价/MapServer"
+      });
+      map.add(layer);  // adds the layer to the map
+
+      //*** Add div element to show coordates ***//
+      var coordsWidget = document.createElement("div");
+      coordsWidget.id = "coordsWidget";
+      coordsWidget.className = "esri-widget esri-component";
+      coordsWidget.style.padding = "7px 15px 5px";
+      view.ui.add(coordsWidget, "bottom-right");
+
+      //*** Update lat, lon, zoom and scale ***//
+      function showCoordinates(pt) {
+          var coords = "纬度/经度 " + pt.latitude.toFixed(3) + " " + pt.longitude.toFixed(3) + 
+              " | 比例尺 1:" + Math.round(view.scale * 1) / 1 +
+              " | 缩放等级 " + view.zoom;
+          coordsWidget.innerHTML = coords;
+      }
+      
+      //*** Add event and show center coordinates after the view is finished moving e.g. zoom, pan ***//
+      view.watch(["stationary"], function() {
+          showCoordinates(view.center);
+      });
+
+      //*** Add event to show mouse coordinates on click and move ***//
+      view.on(["pointer-down","pointer-move"], function(evt) {
+          showCoordinates(view.toMap({ x: evt.x, y: evt.y }));
+      });
+
+      //当前定位  
+      var track = new Track({
+        view: view,
+        graphic: new Graphic({
+          symbol: {
+            type: "simple-marker",
+            size: "12px",
+            color: "green",
+            outline: {
+              color: "#efefef",
+              width: "1.5px"
+            }
+          }
+        }),
+        useHeadingEnabled: false
+      });
+      view.ui.add(track, "top-left");
+
+      // Add Search widget
+      var search = new Search({
+          view: view
+      });
+      view.ui.add(search, "bottom-left"); // Add to the map
+              
+      // Find address
+      
+      view.on("click", function(evt){
+          search.clear(); 
+          view.popup.clear();
+          if (search.activeSource) {
+          var geocoder = search.activeSource.locator; // World geocode service
+          var params = {
+              location: evt.mapPoint 
+          };
+          geocoder.locationToAddress(params)
+              .then(function(response) { // Show the address found
+              var address = response.address;
+              showPopup(address, evt.mapPoint);
+              }, function(err) { // Show no address found
+              showPopup("No address found.", evt.mapPoint);
+              });
+          }
+      });
+      
+      function showPopup(address, pt) {
+          view.popup.open({
+          title:  + Math.round(pt.longitude * 100000)/100000 + ", " + Math.round(pt.latitude * 100000)/100000,
+          content: address,
+          location: pt
+          });
+      }
+            
+    // To allow access to the route service and prevent the user from signing in, do the Challenge step in the lab to set up a service proxy
+    
+    var directions = new Directions({
+      view: view
+    });
+    
+   view.ui.add(directions, "top-right");
+    
+  });
+}
+</script>
+
+<!-- 热力图 -->
+<script>
+  function reli(){
+  require([
+    "esri/Map",
+    "esri/views/MapView",
+    "esri/widgets/BasemapToggle",
+    "esri/widgets/BasemapGallery",
+    "esri/layers/TileLayer",
+    "esri/widgets/Locate",
+    "esri/widgets/Track",
+    "esri/Graphic",
+    "esri/widgets/Search",
+    "esri/widgets/Directions",
+    "esri/layers/FeatureLayer",
+    "esri/layers/KMLLayer",
+    "esri/layers/MapImageLayer"
+  ], function(Map, MapView, BasemapToggle, BasemapGallery,TileLaye, Locate, Track, Graphic, Search, Directions, FeatureLayer,KMLLayer,MapImageLayer){
+      
+      var map = new Map({
+          basemap: "streets-vector",
+      });
+
+    var view = new MapView({
+      container: "viewDiv",
+      map: map,
+      center: [120.880, 36.43],
+      zoom:8,
+      padding: {
+        right: 320
+      }
+    });
+      var layer = new MapImageLayer({
+        url: "http://localhost:6080/arcgis/rest/services/热力图/热力图_切片/MapServer"
+      });
+      map.add(layer);  // adds the layer to the map
+
+      //*** Add div element to show coordates ***//
+      var coordsWidget = document.createElement("div");
+      coordsWidget.id = "coordsWidget";
+      coordsWidget.className = "esri-widget esri-component";
+      coordsWidget.style.padding = "7px 15px 5px";
+      view.ui.add(coordsWidget, "bottom-right");
+
+      //*** Update lat, lon, zoom and scale ***//
+      function showCoordinates(pt) {
+          var coords = "纬度/经度 " + pt.latitude.toFixed(3) + " " + pt.longitude.toFixed(3) + 
+              " | 比例尺 1:" + Math.round(view.scale * 1) / 1 +
+              " | 缩放等级 " + view.zoom;
+          coordsWidget.innerHTML = coords;
+      }
+      
+      //*** Add event and show center coordinates after the view is finished moving e.g. zoom, pan ***//
+      view.watch(["stationary"], function() {
+          showCoordinates(view.center);
+      });
+
+      //*** Add event to show mouse coordinates on click and move ***//
+      view.on(["pointer-down","pointer-move"], function(evt) {
+          showCoordinates(view.toMap({ x: evt.x, y: evt.y }));
+      });
+
+      //当前定位  
+      var track = new Track({
+        view: view,
+        graphic: new Graphic({
+          symbol: {
+            type: "simple-marker",
+            size: "12px",
+            color: "green",
+            outline: {
+              color: "#efefef",
+              width: "1.5px"
+            }
+          }
+        }),
+        useHeadingEnabled: false
+      });
+      view.ui.add(track, "top-left");
+
+      // Add Search widget
+      var search = new Search({
+          view: view
+      });
+      view.ui.add(search, "bottom-left"); // Add to the map
+              
+      // Find address
+      
+      view.on("click", function(evt){
+          search.clear(); 
+          view.popup.clear();
+          if (search.activeSource) {
+          var geocoder = search.activeSource.locator; // World geocode service
+          var params = {
+              location: evt.mapPoint 
+          };
+          geocoder.locationToAddress(params)
+              .then(function(response) { // Show the address found
+              var address = response.address;
+              showPopup(address, evt.mapPoint);
+              }, function(err) { // Show no address found
+              showPopup("No address found.", evt.mapPoint);
+              });
+          }
+      });
+      
+      function showPopup(address, pt) {
+          view.popup.open({
+          title:  + Math.round(pt.longitude * 100000)/100000 + ", " + Math.round(pt.latitude * 100000)/100000,
+          content: address,
+          location: pt
+          });
+      }
+            
+    // To allow access to the route service and prevent the user from signing in, do the Challenge step in the lab to set up a service proxy
+    
+    var directions = new Directions({
+      view: view
+    });
+    
+   view.ui.add(directions, "top-right");
+    
+  });
+}
+</script>
+</html>

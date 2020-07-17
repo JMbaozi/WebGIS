@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>青岛市房价热力图</title>
+    <style>
+        html,
+        body,
+        #mapDiv {
+            padding: 0;
+            margin: 0;
+            height: 97%;
+            width: 100%;
+        }
+        #tuli2{
+            position: absolute; 
+            left: 1500px;
+            top: 400px;
+        }
+    </style>
+</head>
+
+<body class="tundra">
+    &nbsp;
+    <link rel="stylesheet" href="http://js.arcgis.com/3.9/js/dojo/dijit/themes/tundra/tundra.css" />&nbsp;
+    <link rel="stylesheet" href="http://js.arcgis.com/3.9/js/esri/css/esri.css" />
+    <script src="http://js.arcgis.com/3.9/"></script>
+    <script>
+        require(["esri/map", "dojo/query", "dojo/on",
+            "esri/layers/ArcGISDynamicMapServiceLayer",
+            "esri/tasks/FindTask",
+            "esri/tasks/FindParameters",
+            "esri/symbols/SimpleLineSymbol",
+            "esri/symbols/SimpleFillSymbol",
+            "esri/Color",
+            "esri/graphic",
+            "dojo/domReady!"],
+            function (Map, query, on, ArcGISDynamicMapServiceLayer, FindTask, FindParameters, SimpleLineSymbol, SimpleFillSymbol, Color, Graphic) {
+                var map = new Map("mapDiv");
+                var layer1 = new ArcGISDynamicMapServiceLayer("http://localhost:6080/arcgis/rest/services/热力图/青岛市规划/MapServer");
+                map.addLayer(layer1);
+                var layer2 = new ArcGISDynamicMapServiceLayer("http://localhost:6080/arcgis/rest/services/热力图/热力图_切片/MapServer");
+                map.addLayer(layer2);
+                query("#btn").on("click", function () {
+                    //获得省份的名称
+                    var name = query(".nm")[0].value; //提取输入值
+                    //实例化查询参数
+                    var findParams = new FindParameters();
+                    findParams.returnGeometry = true; //返回几何
+                    findParams.layerIds = [0]; //图层号
+                    findParams.searchFields = ["NAME"]; //查询字段
+                    findParams.searchText = name; //字段值
+                    //实例化查询对象
+                    var findTask = new FindTask("http://localhost:6080/arcgis/rest/services/热力图/青岛市规划/MapServer");
+                    //进行查询
+                    findTask.execute(findParams, showFindResult) //创建查询
+                });
+                function showFindResult(queryResult) {
+                    if (queryResult.length == 0) {
+                        alert("没有该元素");
+                        return;
+                    }
+                    for (var i = 0; i < queryResult.length; i++) {
+                        //获得该图形的形状
+                        var feature = queryResult[i].feature;
+                        var geometry = feature.geometry;
+                        //定义高亮图形的符号
+                        //1.定义面的边界线符号
+                        var outline = new SimpleLineSymbol(SimpleLineSymbol.STYLE_DASHDOT, new Color([255, 0, 0]), 2);
+                        //2.定义面符号
+                        var PolygonSymbol = new SimpleFillSymbol(SimpleFillSymbol.STYLE_SOLID, outline, new Color([0, 0, 100, 0.2]));
+                        //创建客户端图形
+                        var graphic = new Graphic(geometry, PolygonSymbol);
+                        //将客户端图形添加到map中
+                        map.graphics.add(graphic);
+                    }
+                }
+            })
+    </script>
+    <div id="mapDiv"></div>
+    <input type="text" class="nm" placeholder="请输入名称" />
+    <input type="button" id="btn" value="市区查询" />
+    <p>数据更新时间：2020.6.23</p>
+    <div id="tuli2">
+        <img src="/tuli2.png" width="400" height="500">
+    </div>
+</body>
+
+</html>
