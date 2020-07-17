@@ -10,4 +10,5 @@
 * 对可视化的地图进行区县查询分析
 * 对房价分布进行缓冲区分析
 
-系统效果图在
+系统效果图可在[《青岛市房价分析展示系统》](https://github.com/JMbaozi/WebGIS/blob/master/%E3%80%8A%E9%9D%92%E5%B2%9B%E5%B8%82%E6%88%BF%E4%BB%B7%E5%88%86%E6%9E%90%E5%B1%95%E7%A4%BA%E7%B3%BB%E7%BB%9F%E3%80%8B.docx)查看。
+
