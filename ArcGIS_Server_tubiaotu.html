@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no">
+	<title>图标图</title>
+	<link rel="stylesheet" href="https://js.arcgis.com/4.15/esri/themes/light/main.css">
+	<script src="https://js.arcgis.com/4.15/"></script>
+    <style>
+      html, body, #viewDiv {
+        padding: 0;
+        margin: 0;
+        height: 100%;
+        width: 100%;
+      }
+	</style>
+	<script>
+		require([
+			"esri/Map",
+			"esri/views/MapView",
+			"esri/widgets/BasemapToggle",
+			"esri/widgets/BasemapGallery",
+			"esri/layers/FeatureLayer",
+			"esri/widgets/Search"
+		], function(Map, MapView, BasemapToggle, BasemapGallery, FeatureLayer) {
+
+			var basemapToggle = new BasemapToggle({
+				view: view,
+				nextBasemap: "satellite"
+			});	
+			// view.ui.add(basemapToggle, "bottom-right");
+		    
+			var map = new Map({
+				basemap: "streets"
+			});
+			
+			// Trailheads feature layer (points)
+			var trailheadsLayer = new FeatureLayer({
+        		url: "http://localhost:6080/arcgis/rest/services/热力图/热力图/MapServer"
+      		});
+
+      		map.add(trailheadsLayer);
+	  
+		  var view = new MapView({
+			container: "viewDiv",
+			map: map,
+			center: [120.27, 36.09], // longitude, latitude
+			zoom: 9
+		  });
+		});
+		</script>
+</head>
+<body>
+    <div id="viewDiv"></div>
+</body>
+</html>
